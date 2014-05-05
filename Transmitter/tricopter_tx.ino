@@ -233,7 +233,7 @@ void readPitch()
       Serial.print(oppitch);
       Serial.print("\t\t");
   #endif
-  radioFrame[2] = opyaw;
+  radioFrame[2] = oppitch;
 }
 
 void readRoll()
@@ -262,7 +262,7 @@ void readRoll()
       Serial.print(oproll);
       Serial.print("\t\t");
   #endif
-  radioFrame[3] = opyaw;
+  radioFrame[3] = oproll;
 }
 
 void readButton()
