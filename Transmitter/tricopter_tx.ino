@@ -64,7 +64,9 @@ PID roll2Joystick(&yaw,&opyaw,&calYaw,0,0.5,0,REVERSE);
 // --- Begining of main program routine  ---
 void setup()
 {
-  Serial.begin(9600);
+  #if DEBUG
+    Serial.begin(9600);
+  #endif
   pinMode(buttonPin,INPUT);
   pinMode(altiholdPin,INPUT);
   pinMode(autopilotPin,INPUT);
