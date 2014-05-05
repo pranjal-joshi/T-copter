@@ -5,7 +5,7 @@ Author  :  Pranjal Joshi
 Date    :  30-4-2014
 License :  GNU GPL v2 (Relased in public domain as open-source).
 Disclaimer :
-    This code may contain bug as it is in development stage.
+    This code may contain bugs as it is in development stage.
     Feel free to edit/improve/share.
 */
 #include <PID_v1.h>
@@ -101,6 +101,13 @@ void loop()
 
 void initRadio()
 {
+  /*
+  This function initialize nRF24l01 @ 250Kbps for higher range.
+  Payload size is static & 10 bytes (i.e 5 integers)
+  pipe is 64 bit address of module used for commuincation.
+  pipe is similar to IP addr of computer.
+  Power Amplifier (PA) is set to highest level --> Increased power consumption!
+  */
   radio.begin();
   if(!(radio.setDataRate(RF24_250KBPS)))
     radio.setDataRate(RF24_1MBPS);
@@ -112,6 +119,11 @@ void initRadio()
 
 void initPID()
 {
+  /*
+  This initialize all PID controllers used to create flight control signals
+  from analog joystick.
+  Change output range as per requirement.
+  */
   throttleJoystick.SetMode(AUTOMATIC);
   throttleJoystick.SetOutputLimits(0,1023);
 
@@ -133,6 +145,12 @@ void initPID()
 
 void readThrottle()
 {
+  /*
+  This function reads the analog joystick as throttle using mathematical
+  Integration using PID library.
+  The adaptive tunings are provided for higher accuracy on smaller change &
+  faster action of large change in joystick position.
+  */
   throt = analogRead(throtPin);
   if(throt < (calThrot - 10) || throt > (calThrot + 10))
   {
@@ -160,6 +178,9 @@ void readThrottle()
 
 void readYaw()
 {
+  /*
+  Reads yaw in discrete values.
+  */
   yaw = analogRead(yawPin);
   if(yaw < (calYaw - 10))
   {
@@ -185,6 +206,9 @@ void readYaw()
 
 void readPitch()
 {
+  /*
+  Reads pitch in discrete values.
+  */
   pitch = analogRead(pitchPin);
   if(pitch < (calPitch - 10))
   {
@@ -212,6 +236,9 @@ void readPitch()
 
 void readRoll()
 {
+  /*
+  Reads roll in discrete values.
+  */
   roll = analogRead(rollPin);
   if(roll < (calRoll - 10))
   {
@@ -238,6 +265,11 @@ void readRoll()
 
 void readButton()
 {
+  /*
+  scan for all button i.e pressed or not.
+  must be call in loop to update.
+  */
+  
   // random button -- function not specified
   buttonState = digitalRead(buttonPin);
   #if DEBUG
@@ -307,7 +339,7 @@ void readButton()
   }
   // --- read Light control button ---
   
-    lightsState = digitalRead(lightsPin);
+  lightsState = digitalRead(lightsPin);
   #if DEBUG
     Serial.print("\t");
     Serial.println(lightsState);
@@ -334,7 +366,12 @@ void readButton()
 
 void callibrateJoysticks()
 {
-  // calibrate joystick pots on begining
+  /*
+  calibrate joystick pots on begining.
+  eliminate need of static calibration.
+  Improved performance.
+  Must called once in setup.
+  */
   for(ccnt=0;ccnt<10;ccnt++)
     calThrot += analogRead(throtPin);
   calThrot = (uint16_t)(calThrot/10);
