@@ -54,11 +54,11 @@ PID throttleJoystick(&throt,&opthrot,&calThrot,0,KiThrottle,0,DIRECT);
 PID yaw1Joystick(&yaw,&opyaw,&calYaw,0,0.5,0,DIRECT);
 PID yaw2Joystick(&yaw,&opyaw,&calYaw,0,0.5,0,REVERSE);
 
-PID pitch1Joystick(&yaw,&opyaw,&calYaw,0,0.5,0,DIRECT);
-PID pitch2Joystick(&yaw,&opyaw,&calYaw,0,0.5,0,REVERSE);
+PID pitch1Joystick(&pitch,&oppitch,&calPitch,0,0.5,0,DIRECT);
+PID pitch2Joystick(&pitch,&oppitch,&calPitch,0,0.5,0,REVERSE);
 
-PID roll1Joystick(&yaw,&opyaw,&calYaw,0,0.5,0,DIRECT);
-PID roll2Joystick(&yaw,&opyaw,&calYaw,0,0.5,0,REVERSE);
+PID roll1Joystick(&roll,&oproll,&calRoll,0,0.5,0,DIRECT);
+PID roll2Joystick(&roll,&oproll,&calRoll,0,0.5,0,REVERSE);
 
 
 // --- Begining of main program routine  ---
