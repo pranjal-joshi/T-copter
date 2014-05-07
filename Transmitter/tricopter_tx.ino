@@ -21,10 +21,12 @@ Disclaimer :
 #define kpPitch 2.0
 
 // ---  Hardware pin map  ---
+/* Joysticks */
 #define throtPin A0
 #define yawPin A1
 #define pitchPin A2
 #define rollPin A3
+/* Buttons/switches */
 #define buttonPin 2
 #define autopilotPin 3
 #define altiholdPin 4
@@ -45,6 +47,7 @@ double calThrot=0,calYaw=0,calPitch=0,calRoll=0;
 const uint64_t pipe = 0xF0F0F0F0E1LL;  // radio pipe
 uint16_t radioFrame[PAYLOADSIZE/2];
 uint16_t radioFrameChanged[sizeof(radioFrame)+1];
+uint8_t indicateChange[3] = {0,0,0};
 
 // --- Objects/Instances  ---
 RF24 radio(9,10);
@@ -62,6 +65,7 @@ PID roll2Joystick(&roll,&oproll,&calRoll,0,0.5,0,REVERSE);
 
 
 // --- Begining of main program routine  ---
+
 void setup()
 {
   #if DEBUG
@@ -88,6 +92,7 @@ void setup()
   callibrateJoysticks();
   initRadio();
   initPID();
+  indicate(500,500,3);
 }
 
 void loop()
@@ -217,6 +222,7 @@ void readPitch()
     pitch1Joystick.Compute();
     if(oppitch > 100)
       oppitch -= 50;
+    
   }
   else if(pitch > (calPitch + 10))
   {
@@ -311,10 +317,16 @@ void readButton()
   if(cnt[1] % 2 == 0)
   {
     specialKeys &= 0B11111101;
+    indicateChange[0] = 1;
   }
   else
   {
     specialKeys |= 0B00000010;
+    if(indicateChange[0])
+    {
+      indicate(200,80,3);
+      indicateChange[0] = 0;
+    }
   }
   
   // --- read altihold button ---
@@ -334,10 +346,16 @@ void readButton()
   if(cnt[2] % 2 == 0)
   {
     specialKeys &= 0B11111011;
+    indicateChange[1] = 1;
   }
   else
   {
     specialKeys |= 0B00000100;
+    if(indicateChange[1])
+    {
+      indicate(80,200,3);
+      indicateChange[1] = 0;
+    }
   }
   // --- read Light control button ---
   
@@ -356,12 +374,17 @@ void readButton()
   if(cnt[3] % 2 == 0)
   {
     specialKeys &= 0B11110111;
+    indicateChange[2] = 1;
   }
   else
   {
     specialKeys |= 0B00001000;
+    if(indicateChange[2])
+    {
+      indicate(10,400,3);
+      indicateChange[2] = 0;
+    }
   }
-  
   // compose frame
   radioFrame[4] = specialKeys;
 }
@@ -399,7 +422,6 @@ void callibrateJoysticks()
     Serial.println(calPitch);
     Serial.print(F("Yaw Callibration\t:\t"));
     Serial.println(calYaw);
-    delay(3000);
   #endif
 }
 
@@ -418,4 +440,16 @@ void transmittRadio()
   }
   if(tx)
     radio.write(radioFrame,sizeof(radioFrame));
+}
+
+void indicate(uint16_t ontime, uint16_t offtime, uint8_t iterations)
+{
+  byte k;
+  for(k=0;k < iterations;k++)
+  {
+    digitalWrite(ledPin,HIGH);
+    delay(ontime);
+    digitalWrite(ledPin,LOW);
+    delay(offtime);
+  }
 }
