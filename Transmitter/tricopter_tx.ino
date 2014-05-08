@@ -7,6 +7,7 @@ License :  GNU GPL v2 (Relased in public domain as open-source).
 Disclaimer :
     This code may contain bugs as it is in development stage.
     Feel free to edit/improve/share.
+Updates will be always available at http://github.com/pranjal-joshi/T-copter
 */
 #include <PID_v1.h>
 #include <RF24.h>
