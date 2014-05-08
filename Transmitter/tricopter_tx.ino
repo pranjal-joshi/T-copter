@@ -281,6 +281,12 @@ void readButton()
   scan for all button i.e pressed or not.
   must be call in loop to update.
   */
+  /*
+  Here, rather than using a byte for each button, we will use
+  a single bit for each button, so therotically one byte can be
+  used to carry data of max. 256 switches.
+  I am using only 4 switches, u can add as per your requirement.
+  */
   
   // --- ESC Arm button ---
   armButtonState = digitalRead(buttonPin);
