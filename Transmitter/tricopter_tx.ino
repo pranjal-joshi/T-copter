@@ -21,6 +21,9 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #define kpRoll 2.0
 #define kpPitch 2.0
 
+#define ESC_MIN 1000
+#define ESC_MAX 2000
+
 // ---  Hardware pin map  ---
 /* Joysticks */
 #define throtPin A0
@@ -35,7 +38,7 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #define ledPin 8
 
 // --- Global Variables  ---
-uint8_t buttonState=0,autopilotState=0,altiholdState=0,lightsState=0,specialKeys=0;
+uint8_t armButtonState=0,autopilotState=0,altiholdState=0,lightsState=0,specialKeys=0;
 uint8_t lastState[4] = {0,0,0,0};
 uint8_t cnt[4] = {0,0,0,0};
 uint8_t ccnt;
@@ -133,7 +136,7 @@ void initPID()
   Change output range as per requirement.
   */
   throttleJoystick.SetMode(AUTOMATIC);
-  throttleJoystick.SetOutputLimits(0,1023);
+  throttleJoystick.SetOutputLimits(ESC_MIN,ESC_MAX);
 
   yaw1Joystick.SetMode(AUTOMATIC);
   yaw1Joystick.SetOutputLimits(100,150);
@@ -279,22 +282,33 @@ void readButton()
   must be call in loop to update.
   */
   
-  // random button -- function not specified
-  buttonState = digitalRead(buttonPin);
+  // --- ESC Arm button ---
+  armButtonState = digitalRead(buttonPin);
   #if DEBUG
     Serial.print("\t");
-    Serial.print(buttonState);
+    Serial.print(armButtonState);
   #endif
-  if(buttonState != lastState[0])
+  if(armButtonState != lastState[0])
   {
     delay(1);
-    if(buttonState == HIGH)
+    if(armButtonState == HIGH)
       cnt[0]++;
   }
-  lastState[0] = buttonState;
+  lastState[0] = armButtonState;
   if(cnt[0] % 2 == 0)
   {
-    specialKeys &= 0B11111110;
+    if(((opthrot/ESC_MAX)*100) > 10)
+    {
+      indicate(100,100,5);
+      /*
+      indicates error:
+      u can't dis-arm ESC while the throttle is more than 10%.
+      This will provide intellegent dis-arm elimination during
+      flight & avoid crash landing.
+      */
+    }
+    else
+      specialKeys &= 0B11111110;
   }
   else
   {
@@ -445,6 +459,11 @@ void transmittRadio()
 
 void indicate(uint16_t ontime, uint16_t offtime, uint8_t iterations)
 {
+  /*
+  This function is used to blink LED in diffrent styles to
+  provide visual confirmation of activating/deactivating certian
+  functions like altihold, autopilot, arming etc..
+  */
   byte k;
   for(k=0;k < iterations;k++)
   {
