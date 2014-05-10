@@ -12,6 +12,7 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #include <PID_v1.h>
 #include <RF24.h>
 #include <SPI.h>
+#include <SimpleTimer.h>
 
 #define DEBUG 1 // set 1 to debug, 0 while regular use
 
@@ -67,6 +68,8 @@ PID pitch2Joystick(&pitch,&oppitch,&calPitch,0,0.5,0,REVERSE);
 PID roll1Joystick(&roll,&oproll,&calRoll,0,0.5,0,DIRECT);
 PID roll2Joystick(&roll,&oproll,&calRoll,0,0.5,0,REVERSE);
 
+SimpleTimer timer;  // periodical routines execution
+
 
 // --- Begining of main program routine  ---
 
@@ -97,6 +100,7 @@ void setup()
   initRadio();
   initPID();
   indicate(500,500,3);
+  timer.setInterval(10000,checkPower);
 }
 
 void loop()
@@ -107,7 +111,8 @@ void loop()
   readPitch();
   readRoll();
   readButton(); 
-  transmittRadio(); 
+  transmittRadio();
+  timer.run();
 }
 
 void initRadio()
@@ -477,5 +482,36 @@ void indicate(uint16_t ontime, uint16_t offtime, uint8_t iterations)
     delay(ontime);
     digitalWrite(ledPin,LOW);
     delay(offtime);
+  }
+}
+
+unsigned int getVcc()
+{
+  // get Vcc in mV using internal 1.1v ref
+    ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+    delay(5);
+    ADCSRA |= _BV(ADSC);
+    while(bit_is_set(ADCSRA,ADSC));
+    uint8_t low = ADCL;
+    uint8_t high = ADCH;
+    uint16_t vcc = (high << 8) | low;
+    vcc = (1.1*1023*1000)/vcc;
+    
+    return vcc;
+}
+
+void checkPower()
+{
+  /*
+  this function checks if Vcc from LiPo battery. If
+  voltage falls below 3.2V the led will blink rapidly
+  for 5 times.
+  This function is executed after 5 seconds for safety.
+  */
+  unsigned int vcc = getVcc();
+  while(vcc < 3200)
+  {
+    vcc = getVcc();
+    indicate(50,50,5);
   }
 }
