@@ -33,9 +33,9 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #define pitchPin A0
 #define rollPin A1
 /* Buttons/switches */
-#define armButtonPin 4    ///////// 2
+#define armButtonPin 4
 #define autopilotPin 3
-#define altiholdPin 2    ///////// 4
+#define altiholdPin 2
 #define lightsPin 5
 #define ledPin 8
 
@@ -482,12 +482,14 @@ void transmittRadio()
   
   #if DEBUG
     Serial.println();
+    Serial.print(F("Current values : "));
     for(ccnt=0;ccnt<5;ccnt++)
     {
       Serial.print(radioFrame[ccnt]);
       Serial.print(" ");
     }
     Serial.println();
+    Serial.print(F("Last time values : "));
     for(ccnt=0;ccnt<5;ccnt++)
     {
       Serial.print(radioFrameChanged[ccnt]);
