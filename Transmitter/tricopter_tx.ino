@@ -13,6 +13,7 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #include <RF24.h>
 #include <SPI.h>
 #include <SimpleTimer.h>
+#include "printf.h"
 
 #define DEBUG 1 // set 1 to debug, 0 while regular use
 
@@ -27,14 +28,14 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 
 // ---  Hardware pin map  ---
 /* Joysticks */
-#define throtPin A0
-#define yawPin A1
-#define pitchPin A2
-#define rollPin A3
+#define throtPin A2
+#define yawPin A3
+#define pitchPin A0
+#define rollPin A1
 /* Buttons/switches */
-#define buttonPin 2
+#define armButtonPin 4    ///////// 2
 #define autopilotPin 3
-#define altiholdPin 4
+#define altiholdPin 2    ///////// 4
 #define lightsPin 5
 #define ledPin 8
 
@@ -44,15 +45,16 @@ uint8_t lastState[4] = {0,0,0,0};
 uint8_t cnt[4] = {0,0,0,0};
 uint8_t ccnt;
 double KiThrottle;
-double throt,opthrot;
+double throt,opthrot=1;
 double yaw,opyaw;
 double pitch,oppitch;
 double roll,oproll;
 double calThrot=0,calYaw=0,calPitch=0,calRoll=0;
-const uint64_t pipe = 0xF0F0F0F0E1LL;  // radio pipe
+const uint64_t pipe[2] = {0xF0F0F0F0E1LL, 0xF0F0F0F0D3LL};
 uint16_t radioFrame[PAYLOADSIZE/2];
-uint16_t radioFrameChanged[sizeof(radioFrame)+1];
-uint8_t indicateChange[3] = {0,0,0};
+uint16_t radioFrameChanged[PAYLOADSIZE/2];
+uint8_t indicateChange[4] = {0,0,0,0};
+boolean isArmed = false;
 
 // --- Objects/Instances  ---
 RF24 radio(9,10);
@@ -78,13 +80,16 @@ void setup()
   #if DEBUG
     Serial.begin(9600);
   #endif
-  pinMode(buttonPin,INPUT);
+  callibrateJoysticks();
+  initRadio();
+  initPID();
+  pinMode(armButtonPin,INPUT);
   pinMode(altiholdPin,INPUT);
   pinMode(autopilotPin,INPUT);
   pinMode(lightsPin,INPUT);
   pinMode(ledPin,OUTPUT);
   // --- enable internal pull up resistors of inputs ---
-  digitalWrite(buttonPin,HIGH);
+  digitalWrite(armButtonPin,HIGH);
   digitalWrite(altiholdPin,HIGH);
   digitalWrite(autopilotPin,HIGH);
   digitalWrite(lightsPin,HIGH);
@@ -96,16 +101,12 @@ void setup()
   {
     radioFrameChanged[ccnt] = 0;
   }
-  callibrateJoysticks();
-  initRadio();
-  initPID();
-  indicate(500,500,3);
+  indicate(300,300,3);
   timer.setInterval(10000,checkPower);
 }
 
 void loop()
 {
-  memcpy(radioFrameChanged,radioFrame,sizeof(radioFrameChanged));
   readThrottle();
   readYaw();
   readPitch();
@@ -120,17 +121,32 @@ void initRadio()
   /*
   This function initialize nRF24l01 @ 250Kbps for higher range.
   Payload size is static & 10 bytes (i.e 5 integers)
-  pipe is 64 bit address of module used for commuincation.
+  pipe is 40 bit address of module used for commuincation.
   pipe is similar to IP addr of computer.
   Power Amplifier (PA) is set to highest level --> Increased power consumption!
   */
+  // not worked for me without delay. Don't know why!
   radio.begin();
-  if(!(radio.setDataRate(RF24_250KBPS)))
-    radio.setDataRate(RF24_1MBPS);
-  radio.setPALevel(RF24_PA_HIGH);
-  radio.setRetries(5,10);
+  delay(5);
+  radio.setRetries(15,15);
+  delay(5);
+  radio.setPALevel(RF24_PA_MAX);
+  delay(5);
+  radio.setDataRate(RF24_250KBPS);
+  delay(5);
   radio.setPayloadSize(PAYLOADSIZE);
-  radio.openWritingPipe(pipe);
+  delay(5);
+  radio.openWritingPipe(pipe[0]);
+  delay(5);
+  radio.openReadingPipe(1,pipe[1]);
+  delay(5);
+  radio.startListening();
+  delay(5);
+  radio.stopListening();
+  #if DEBUG
+    printf_begin();
+    radio.printDetails();
+  #endif
 }
 
 void initPID()
@@ -178,18 +194,20 @@ void readThrottle()
     }
     else
     {
-      KiThrottle = 0.85;          // agressive for major change
+      KiThrottle = 1.85;          // agressive for major change
       throttleJoystick.SetTunings(2,KiThrottle,0);
     }
+    radioFrameChanged[0] = opthrot;
     throttleJoystick.Compute();
     radioFrame[0] = opthrot;
   }
-  #if DEBUG
+   #if DEBUG
     Serial.print(throt);
     Serial.print("\t\t");
     Serial.print(radioFrame[0]);
     Serial.print("\t\t");
   #endif
+  
 }
 
 void readYaw()
@@ -198,6 +216,7 @@ void readYaw()
   Reads yaw in discrete values.
   */
   yaw = analogRead(yawPin);
+  radioFrameChanged[1] = opyaw;
   if(yaw < (calYaw - 10))
   {
     yaw1Joystick.Compute();
@@ -226,6 +245,7 @@ void readPitch()
   Reads pitch in discrete values.
   */
   pitch = analogRead(pitchPin);
+  radioFrameChanged[2] = oppitch;
   if(pitch < (calPitch - 10))
   {
     pitch1Joystick.Compute();
@@ -257,6 +277,7 @@ void readRoll()
   Reads roll in discrete values.
   */
   roll = analogRead(rollPin);
+  radioFrameChanged[3] = oproll;
   if(roll < (calRoll - 10))
   {
     roll1Joystick.Compute();
@@ -292,9 +313,9 @@ void readButton()
   used to carry data of max. 256 switches.
   I am using only 4 switches, u can add as per your requirement.
   */
-  
+  radioFrameChanged[4] = specialKeys;
   // --- ESC Arm button ---
-  armButtonState = digitalRead(buttonPin);
+  armButtonState = digitalRead(armButtonPin);
   #if DEBUG
     Serial.print("\t");
     Serial.print(armButtonState);
@@ -306,24 +327,20 @@ void readButton()
       cnt[0]++;
   }
   lastState[0] = armButtonState;
+  
   if(cnt[0] % 2 == 0)
   {
-    if(((opthrot/ESC_MAX)*100) > 10)
-    {
-      indicate(100,100,5);
-      /*
-      indicates error:
-      u can't dis-arm ESC while the throttle is more than 10%.
-      This will provide intellegent dis-arm elimination during
-      flight & avoid crash landing.
-      */
-    }
-    else
-      specialKeys &= 0B11111110;
+    specialKeys &= 0B11111110; 
+    indicateChange[3] = 1;
   }
   else
   {
     specialKeys |= 0B00000001;
+    if(indicateChange[3])
+    {
+      indicate(500,700,2);
+      indicateChange[3] = 0;
+    }
   }
   
   //--- read autoPiolt button ---
@@ -350,7 +367,7 @@ void readButton()
     specialKeys |= 0B00000010;
     if(indicateChange[0])
     {
-      indicate(200,80,3);
+      indicate(400,100,3);
       indicateChange[0] = 0;
     }
   }
@@ -379,7 +396,7 @@ void readButton()
     specialKeys |= 0B00000100;
     if(indicateChange[1])
     {
-      indicate(80,200,3);
+      indicate(100,400,3);
       indicateChange[1] = 0;
     }
   }
@@ -457,15 +474,41 @@ void transmittRadio()
   This function check for change in last readings & current reading.
   It transmitts data only when the last & current readings aren't same.
   This will save power & reduce unwanted signal transmission.
+  It uses 2 arrays that compares current reading & last reading & send
+  data only when there is no match between these 2 arrays.
+  saves lot of power.
   */
   boolean tx = false;
-  for(ccnt=0;ccnt<sizeof(radioFrameChanged);ccnt++) 
+  
+  #if DEBUG
+    Serial.println();
+    for(ccnt=0;ccnt<5;ccnt++)
+    {
+      Serial.print(radioFrame[ccnt]);
+      Serial.print(" ");
+    }
+    Serial.println();
+    for(ccnt=0;ccnt<5;ccnt++)
+    {
+      Serial.print(radioFrameChanged[ccnt]);
+      Serial.print(" ");
+    }
+    Serial.println();
+  #endif
+    
+  for(ccnt=0;ccnt<5;ccnt++) 
   {
-    if(radioFrame[ccnt] != radioFrameChanged[ccnt]) 
-      tx = true;
+    if((radioFrame[ccnt] != radioFrameChanged[ccnt])) 
+      tx |= true; 
   }
+  if(radioFrame[0] != radioFrameChanged[0])
+    radioFrameChanged[0] = radioFrame[0];
   if(tx)
-    radio.write(radioFrame,sizeof(radioFrame));
+  {
+    if(radio.write(radioFrame,sizeof(radioFrame)))
+      Serial.println("\t\t\tDATA SENT");
+    delay(20);
+  }
 }
 
 void indicate(uint16_t ontime, uint16_t offtime, uint8_t iterations)
@@ -509,6 +552,10 @@ void checkPower()
   This function is executed after 5 seconds for safety.
   */
   unsigned int vcc = getVcc();
+  #if DEBUG
+      Serial.println(vcc);
+      Serial.flush();
+    #endif
   while(vcc < 3200)
   {
     vcc = getVcc();
