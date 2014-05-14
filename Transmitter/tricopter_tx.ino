@@ -15,7 +15,7 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #include <SimpleTimer.h>
 #include "printf.h"
 
-#define DEBUG 1 // set 1 to debug, 0 while regular use
+#define DEBUG 0 // set 1 to debug, 0 while regular use
 
 // ---  Configurations   ---
 #define PAYLOADSIZE 10
@@ -33,11 +33,13 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #define pitchPin A0
 #define rollPin A1
 /* Buttons/switches */
-#define armButtonPin 4
-#define autopilotPin 3
-#define altiholdPin 2
-#define lightsPin 5
+#define armButtonPin 2
+#define autopilotPin 6
+#define altiholdPin 5
+#define lightsPin 4
 #define ledPin 8
+#define ledCathode 7
+#define buttonCathode 3
 
 // --- Global Variables  ---
 uint8_t armButtonState=0,autopilotState=0,altiholdState=0,lightsState=0,specialKeys=0;
@@ -88,11 +90,16 @@ void setup()
   pinMode(autopilotPin,INPUT);
   pinMode(lightsPin,INPUT);
   pinMode(ledPin,OUTPUT);
+  pinMode(ledCathode,OUTPUT);
+  pinMode(buttonCathode,OUTPUT);
   // --- enable internal pull up resistors of inputs ---
   digitalWrite(armButtonPin,HIGH);
   digitalWrite(altiholdPin,HIGH);
   digitalWrite(autopilotPin,HIGH);
   digitalWrite(lightsPin,HIGH);
+  // --- Low cathode pins to act as ground (sink current)
+  digitalWrite(ledCathode,LOW);
+  digitalWrite(buttonCathode,LOW);
   // --- 1st time compensation  ---
   opyaw = 150;
   oproll = 150;
@@ -483,14 +490,14 @@ void transmittRadio()
   #if DEBUG
     Serial.println();
     Serial.print(F("Current values : "));
-    for(ccnt=0;ccnt<5;ccnt++)
+    for(ccnt=0;ccnt<(PAYLOADSIZE/2);ccnt++)
     {
       Serial.print(radioFrame[ccnt]);
       Serial.print(" ");
     }
     Serial.println();
     Serial.print(F("Last time values : "));
-    for(ccnt=0;ccnt<5;ccnt++)
+    for(ccnt=0;ccnt<(PAYLOADSIZE/2);ccnt++)
     {
       Serial.print(radioFrameChanged[ccnt]);
       Serial.print(" ");
@@ -498,7 +505,7 @@ void transmittRadio()
     Serial.println();
   #endif
     
-  for(ccnt=0;ccnt<5;ccnt++) 
+  for(ccnt=0;ccnt<(PAYLOADSIZE/2);ccnt++) 
   {
     if((radioFrame[ccnt] != radioFrameChanged[ccnt])) 
       tx |= true; 
@@ -508,7 +515,11 @@ void transmittRadio()
   if(tx)
   {
     if(radio.write(radioFrame,sizeof(radioFrame)))
+    {
+      digitalWrite(ledPin,HIGH);
       Serial.println("\t\t\tDATA SENT");
+      digitalWrite(ledPin,LOW);
+    }
     delay(20);
   }
 }
@@ -558,7 +569,7 @@ void checkPower()
       Serial.println(vcc);
       Serial.flush();
     #endif
-  while(vcc < 3200)
+  while(vcc < 3685)
   {
     vcc = getVcc();
     indicate(50,50,5);
