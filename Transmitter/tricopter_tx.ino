@@ -82,9 +82,6 @@ void setup()
   #if DEBUG
     Serial.begin(9600);
   #endif
-  callibrateJoysticks();
-  initRadio();
-  initPID();
   pinMode(armButtonPin,INPUT);
   pinMode(altiholdPin,INPUT);
   pinMode(autopilotPin,INPUT);
@@ -100,6 +97,12 @@ void setup()
   // --- Low cathode pins to act as ground (sink current)
   digitalWrite(ledCathode,LOW);
   digitalWrite(buttonCathode,LOW);
+  // --- check input power ---
+  checkPower();
+  // --- init & calibrate --
+  callibrateJoysticks();
+  initRadio();
+  initPID();
   // --- 1st time compensation  ---
   opyaw = 150;
   oproll = 150;
@@ -190,7 +193,10 @@ void readThrottle()
   The adaptive tunings are provided for higher accuracy on smaller change &
   faster action of large change in joystick position.
   */
-  throt = analogRead(throtPin);
+  if(isArmed == true)
+  {
+    throt = analogRead(throtPin);
+  
   if(throt < (calThrot - 10) || throt > (calThrot + 10))
   {
     // adaptive tunnings
@@ -207,6 +213,7 @@ void readThrottle()
     radioFrameChanged[0] = opthrot;
     throttleJoystick.Compute();
     radioFrame[0] = opthrot;
+  }
   }
    #if DEBUG
     Serial.print(throt);
@@ -339,10 +346,12 @@ void readButton()
   {
     specialKeys &= 0B11111110; 
     indicateChange[3] = 1;
+    isArmed = false;
   }
   else
   {
     specialKeys |= 0B00000001;
+    isArmed = true;
     if(indicateChange[3])
     {
       indicate(500,700,2);
@@ -572,6 +581,6 @@ void checkPower()
   while(vcc < 3685)
   {
     vcc = getVcc();
-    indicate(50,50,5);
+    indicate(150,150,5);
   }
 }
