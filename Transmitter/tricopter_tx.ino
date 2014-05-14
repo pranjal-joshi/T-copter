@@ -569,7 +569,7 @@ void checkPower()
 {
   /*
   this function checks if Vcc from LiPo battery. If
-  voltage falls below 3.2V the led will blink rapidly
+  voltage falls below 3.68V the led will blink rapidly
   for 5 times.
   This function is executed after 5 seconds for safety.
   */
