@@ -76,7 +76,6 @@ SimpleTimer timer;  // periodical routines execution
 
 
 // --- Begining of main program routine  ---
-
 void setup()
 {
   #if DEBUG
@@ -149,6 +148,8 @@ void initRadio()
   radio.openWritingPipe(pipe[0]);
   delay(5);
   radio.openReadingPipe(1,pipe[1]);
+  delay(5);
+  radio.powerUp();
   delay(5);
   radio.startListening();
   delay(5);
@@ -329,6 +330,8 @@ void readButton()
   */
   radioFrameChanged[4] = specialKeys;
   // --- ESC Arm button ---
+  if(opthrot <= 1001)
+  {
   armButtonState = digitalRead(armButtonPin);
   #if DEBUG
     Serial.print("\t");
@@ -344,12 +347,6 @@ void readButton()
   
   if(cnt[0] % 2 == 0)
   {
-    specialKeys &= 0B11111110; 
-    indicateChange[3] = 1;
-    isArmed = false;
-  }
-  else
-  {
     specialKeys |= 0B00000001;
     isArmed = true;
     if(indicateChange[3])
@@ -357,6 +354,15 @@ void readButton()
       indicate(500,700,2);
       indicateChange[3] = 0;
     }
+  }
+  else
+  {
+    specialKeys &= 0B11111110; 
+    indicateChange[3] = 1;
+    isArmed = false;
+    opthrot = 0;
+    radioFrame[0] = opthrot;
+  }
   }
   
   //--- read autoPiolt button ---
@@ -495,7 +501,7 @@ void transmittRadio()
   saves lot of power.
   */
   boolean tx = false;
-  
+  radio.stopListening();
   #if DEBUG
     Serial.println();
     Serial.print(F("Current values : "));
@@ -523,14 +529,18 @@ void transmittRadio()
     radioFrameChanged[0] = radioFrame[0];
   if(tx)
   {
-    if(radio.write(radioFrame,sizeof(radioFrame)))
+    boolean sendOK = radio.write(radioFrame,PAYLOADSIZE);
+    if(sendOK)
     {
       digitalWrite(ledPin,HIGH);
-      Serial.println("\t\t\tDATA SENT");
+      #if DEBUG
+        Serial.println("\t\t\tDATA SENT");
+      #endif
+      delay(10);
       digitalWrite(ledPin,LOW);
     }
-    delay(20);
   }
+  radio.startListening();
 }
 
 void indicate(uint16_t ontime, uint16_t offtime, uint8_t iterations)
@@ -569,15 +579,15 @@ void checkPower()
 {
   /*
   this function checks if Vcc from LiPo battery. If
-  voltage falls below 3.68V the led will blink rapidly
+  voltage falls below 3.2V the led will blink rapidly
   for 5 times.
   This function is executed after 5 seconds for safety.
   */
   unsigned int vcc = getVcc();
   #if DEBUG
-      Serial.println(vcc);
-      Serial.flush();
-    #endif
+    Serial.println(vcc);
+    Serial.flush();
+  #endif
   while(vcc < 3685)
   {
     vcc = getVcc();
