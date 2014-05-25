@@ -11,6 +11,7 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 */
 #include <PID_v1.h>
 #include <RF24.h>
+#include <nRF24L01.h>
 #include <SPI.h>
 #include <SimpleTimer.h>
 #include "printf.h"
@@ -23,7 +24,7 @@ Updates will be always available at http://github.com/pranjal-joshi/T-copter
 #define kpRoll 2.0
 #define kpPitch 2.0
 
-#define ESC_MIN 1000
+#define ESC_MIN 1040
 #define ESC_MAX 2000
 
 // ---  Hardware pin map  ---
@@ -52,9 +53,9 @@ double yaw,opyaw;
 double pitch,oppitch;
 double roll,oproll;
 double calThrot=0,calYaw=0,calPitch=0,calRoll=0;
-const uint64_t pipe[2] = {0xF0F0F0F0E1LL, 0xF0F0F0F0D3LL};
-uint16_t radioFrame[PAYLOADSIZE/2];
-uint16_t radioFrameChanged[PAYLOADSIZE/2];
+const uint64_t pipe = 0xE8E8F0F0E1LL;
+uint16_t radioFrame[5];
+uint16_t radioFrameChanged[5];
 uint8_t indicateChange[4] = {0,0,0,0};
 boolean isArmed = false;
 
@@ -98,15 +99,15 @@ void setup()
   digitalWrite(buttonCathode,LOW);
   // --- check input power ---
   checkPower();
-  // --- init & calibrate --
-  callibrateJoysticks();
-  initRadio();
-  initPID();
   // --- 1st time compensation  ---
   opyaw = 150;
   oproll = 150;
   oppitch = 150;
-  for(ccnt=0;ccnt<sizeof(radioFrameChanged);ccnt++)
+  // --- init & calibrate --
+  callibrateJoysticks(); 
+  initPID();
+  initRadio();
+  for(ccnt=0;ccnt<5;ccnt++)
   {
     radioFrameChanged[ccnt] = 0;
   }
@@ -121,7 +122,8 @@ void loop()
   readPitch();
   readRoll();
   readButton(); 
-  transmittRadio();
+  //transmittRadio();
+  radio.write(radioFrame,sizeof(radioFrame));
   timer.run();
 }
 
@@ -136,24 +138,11 @@ void initRadio()
   */
   // not worked for me without delay. Don't know why!
   radio.begin();
-  delay(5);
   radio.setRetries(15,15);
-  delay(5);
-  radio.setPALevel(RF24_PA_MAX);
-  delay(5);
+  radio.setPALevel(RF24_PA_MIN);
   radio.setDataRate(RF24_250KBPS);
-  delay(5);
   radio.setPayloadSize(PAYLOADSIZE);
-  delay(5);
-  radio.openWritingPipe(pipe[0]);
-  delay(5);
-  radio.openReadingPipe(1,pipe[1]);
-  delay(5);
-  radio.powerUp();
-  delay(5);
-  radio.startListening();
-  delay(5);
-  radio.stopListening();
+  radio.openWritingPipe(pipe);
   #if DEBUG
     printf_begin();
     radio.printDetails();
@@ -501,18 +490,17 @@ void transmittRadio()
   saves lot of power.
   */
   boolean tx = false;
-  radio.stopListening();
   #if DEBUG
     Serial.println();
     Serial.print(F("Current values : "));
-    for(ccnt=0;ccnt<(PAYLOADSIZE/2);ccnt++)
+    for(ccnt=0;ccnt<5;ccnt++)
     {
       Serial.print(radioFrame[ccnt]);
       Serial.print(" ");
     }
     Serial.println();
     Serial.print(F("Last time values : "));
-    for(ccnt=0;ccnt<(PAYLOADSIZE/2);ccnt++)
+    for(ccnt=0;ccnt<5;ccnt++)
     {
       Serial.print(radioFrameChanged[ccnt]);
       Serial.print(" ");
@@ -520,7 +508,7 @@ void transmittRadio()
     Serial.println();
   #endif
     
-  for(ccnt=0;ccnt<(PAYLOADSIZE/2);ccnt++) 
+  for(ccnt=0;ccnt<5;ccnt++) 
   {
     if((radioFrame[ccnt] != radioFrameChanged[ccnt])) 
       tx |= true; 
@@ -529,18 +517,16 @@ void transmittRadio()
     radioFrameChanged[0] = radioFrame[0];
   if(tx)
   {
-    boolean sendOK = radio.write(radioFrame,PAYLOADSIZE);
+    boolean sendOK = radio.write(radioFrame,sizeof(radioFrame));
     if(sendOK)
     {
       digitalWrite(ledPin,HIGH);
       #if DEBUG
         Serial.println("\t\t\tDATA SENT");
       #endif
-      delay(10);
       digitalWrite(ledPin,LOW);
     }
   }
-  radio.startListening();
 }
 
 void indicate(uint16_t ontime, uint16_t offtime, uint8_t iterations)
