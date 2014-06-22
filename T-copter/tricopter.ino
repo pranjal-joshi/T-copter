@@ -96,6 +96,7 @@ double readThrottle, readYaw, readRoll, readPitch, readStabilize, readSpecialKey
 
 float flat,flon,x2lat,x2lon,diflat,diflon,dist,temp,heading,angle;      // GPS & waypoints
 double northheading, initHeadings, correctnorthheading;              // angle to north
+double deltaYaw;
 uint16_t fixedInitHeadings;
 
 char BT_data[10];    // bluetooth framing
@@ -220,6 +221,19 @@ void getHeadings()
   if(northheading < 0)
     northheading += 2 * M_PI;
   northheading *= 180/M_PI;
+  
+  // Keep yaw error in [-180, 180]
+  deltaYaw = northheading - initHeadings;
+  // subtract 360deg as needed
+  while (deltaYaw > 180) {
+  	northheading -= 360;
+  	deltaYaw -= 360;
+  }
+  // add 360deg as needed
+  while (deltaYaw < -180) {
+  	northheading += 360;
+  	deltaYaw += 360;
+  }
   
   // yaw gimbal lock correction
   /*if(northheading > 179)
