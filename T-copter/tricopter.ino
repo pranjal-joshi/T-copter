@@ -31,9 +31,9 @@ License :  GNU GPL v2 (Relased in public domain as open-source).
 #define PAYLOADSIZE 10
 #define ESC_MIN 1000
 #define ESC_MAX 2000
-#define YAW_LEFT 83
+#define YAW_LEFT 88
 #define YAW_CENTER 113
-#define YAW_RIGHT 143
+#define YAW_RIGHT 138
 #define YAW_TOLERANCE_DEGREES 2.5
 #define THRESHOLD_RADIUS_METERS 5
 #define TAIL_LIFTUP_COUNTERWEIGHT 0
@@ -42,13 +42,14 @@ License :  GNU GPL v2 (Relased in public domain as open-source).
 // adding constant to calculated signal provides compensation by
 // increasing speed of defective motor than other, thus both
 // motors rotates with almost same speed/rpm (equal thrust).
-#define SLOW_MOTOR_COMPENSATION 3.33
+#define SLOW_MOTOR_COMPENSATION 0
 
 // Hardware config ************************************
 #define gpsled A7
 #define lightsPin 12
 
 // PID tunings ****************************************
+
 double kpr = 0.75;      // roll
 double kir = 0.5;
 double kdr = 0.05;
@@ -94,7 +95,7 @@ uint16_t radioFrame[PAYLOADSIZE/2];    // radio payload
 double readThrottle, readYaw, readRoll, readPitch, readStabilize, readSpecialKeys;  //read form nRF
 
 float flat,flon,x2lat,x2lon,diflat,diflon,dist,temp,heading,angle;      // GPS & waypoints
-double northheading, initHeadings;              // angle to north
+double northheading, initHeadings, correctnorthheading;              // angle to north
 uint16_t fixedInitHeadings;
 
 char BT_data[10];    // bluetooth framing
@@ -188,8 +189,8 @@ void initPID()
   pid_roll_right.SetSampleTime(14);
   
   pid_yaw.SetMode(AUTOMATIC);          // yaw servo
-  pid_yaw.SetOutputLimits(-30,30);
-  //pid_yaw.SetSampleTime(50);
+  pid_yaw.SetOutputLimits(-25,25);
+  pid_yaw.SetSampleTime(50);
   
   pid_altihold_up.SetMode(AUTOMATIC);
   pid_altihold_up.SetOutputLimits(ESC_MIN,ESC_MAX);
@@ -203,6 +204,7 @@ void initPID()
 void getAltitude()
 {
   alti = bmp.readAltitude();
+  alti *= 3.28084;      // convert to feet.. I am comforatble with feet than meters. :p
   temperature = bmp.readTemperature();
   
   #if IMU_DEBUG
@@ -219,8 +221,16 @@ void getHeadings()
     northheading += 2 * M_PI;
   northheading *= 180/M_PI;
   
+  // yaw gimbal lock correction
+  /*if(northheading > 179)
+    correctnorthheading = northheading - 360;
+  else
+    correctnorthheading = northheading;*/
+  
   #if IMU_DEBUG
     Serial.println(northheading);
+    /*Serial.print("\t");
+    Serial.println(correctnorthheading);*/
   #endif
 }
 
@@ -423,7 +433,10 @@ void detachMotors()
 void initIMU()
 {
   if(!mpu.testConnection())
+  {
     Serial.println("*** MPU6050 failed. Flight Abort.");
+    imuFailed();
+  }
   else
   {
     mpu.initialize();
@@ -450,11 +463,17 @@ void initIMU()
     }
   }
   if(!hmc.testConnection())
+  {
     Serial.println("*** HMC5883L failed.");
+    imuFailed();
+  }
   else
     hmc.initialize();
   if(!bmp.begin())
+  {
     Serial.println("*** BMP085 failed.");
+    imuFailed();
+  }
   else
     Serial.println("GY-88 IMU initialized.");
   Serial.println("Initializing MTK3329 GPS...");
@@ -527,6 +546,8 @@ void computePID()
     kpp = 1.9;
     kip = 0.3;
     kdp = 0.85;
+    pid_pitch_fwd.SetTunings(kpp,kip,kdp);
+    pid_pitch_rev.SetTunings(kpp,kip,kdp);
   }
   else if(readPitch < 150)
   {
@@ -534,6 +555,8 @@ void computePID()
     kpp = 1.9;
     kip = 0.3;
     kdp = 0.85;
+    pid_pitch_fwd.SetTunings(kpp,kip,kdp);
+    pid_pitch_rev.SetTunings(kpp,kip,kdp);
   }
   else if(readPitch == 150)
   {
@@ -547,6 +570,8 @@ void computePID()
     kpr = 1.8;
     kir = 0.45;
     kdr = 0.85;
+    pid_roll_left.SetTunings(kpr,kir,kdr);
+    pid_roll_right.SetTunings(kpr,kir,kdr);
   }
   else if(readRoll < 150)
   {
@@ -554,6 +579,8 @@ void computePID()
     kpr = 1.8;
     kir = 0.45;
     kdr = 0.85;
+    pid_roll_left.SetTunings(kpr,kir,kdr);
+    pid_roll_right.SetTunings(kpr,kir,kdr);
   }
   else if(readRoll == 150)
   {
@@ -600,7 +627,7 @@ void computePID()
 
 void updateMotors()
 {
-  #define START_PID_CONTROLLERS_AT 1168
+  #define START_PID_CONTROLLERS_AT 1040
     
   if((readThrottle > START_PID_CONTROLLERS_AT) && (readThrottle < 2002))
   {
@@ -664,6 +691,8 @@ void getStartupHeadings()
     initHeadings += northheading;
   }
   initHeadings /= 20;
+  /*if(initHeadings > 179)
+    initHeadings -= 360;*/
   Serial.print("Initial north headings for yaw correction: ");
   Serial.print(initHeadings);
   Serial.println(" degrees.");
@@ -671,17 +700,30 @@ void getStartupHeadings()
 
 void loadDefaultSetpoints()
 {
-  double kpr = 2.5;      // roll
-  double kir = 0.5;
-  double kdr = 1.1;
+  double kpr = 1.35;      // roll
+  double kir = 0.095;
+  double kdr = 0.45;
 
-  double kpp = 2.6;      // pitch
+  double kpp = 1.15;      // pitch
+  double kip = 0.095;
+  double kdp = 0.3;
+  
+  /*double kpp = 2.6;      // pitch
   double kip = 0.55;
-  double kdp = 1.23;
+  double kdp = 1.23;*/
 
-  double kpy = 0.65;      // yaw
-  double kiy = 0.25;
-  double kdy = 0.095;
+  double kpy = 1.265;      // yaw
+  double kiy = 0.001;
+  double kdy = 0.01;
+  
+  pid_roll_left.SetTunings(kpr,kir,kdr);
+  pid_roll_right.SetTunings(kpr,kir,kdr);
+  
+  pid_pitch_fwd.SetTunings(kpp,kip,kdp);
+  pid_pitch_rev.SetTunings(kpp,kip,kdp);
+  
+  pid_yaw.SetTunings(kpy,kiy,kdy);
+
 }
 
 void stabilizeIMU()
@@ -689,10 +731,31 @@ void stabilizeIMU()
   readIMU();
   while((ypr[1] > 1.0 || ypr[1] < -1.0) || (ypr[2] > 1.0 || ypr[2] < -1.0))
   {
-    digitalWrite(gpsled,HIGH);
-    delay(100);
-    digitalWrite(gpsled,LOW);
-    delay(100);
+    indicate(1,100);
     readIMU();
+  }
+}
+
+void indicate(uint8_t howMany, uint16_t delayms)
+{
+  uint8_t cnt;
+  for(cnt=0;cnt<howMany;cnt++)
+  {
+    digitalWrite(gpsled,HIGH);
+    delay(delayms);
+    digitalWrite(gpsled,LOW);
+    delay(delayms);
+  }
+}
+
+void imuFailed()
+{
+  Serial.println("*** IMU failed! Flight aborted.");
+  while(1)
+  {
+    indicate(2,200);
+    delay(500);
+    indicate(2,450);
+    delay(500);
   }
 }
