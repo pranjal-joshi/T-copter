@@ -1,6 +1,10 @@
 T-copter
 ========
 
-This repository contains all the code &amp; software used to build a complete DIY flight controller using arduino for a T-copter.
+**This Project is not actively maintained. Though, Collaboration through PR will be Welcomed.**
 
-Disclaimer: The code is still under heavy development & may contain some minor/major bugs. I am not responsible for any undesirable situation occurred by use of this code.
+### Visit my blog [pranjalnrbotics.blogspot.in](http://pranjalnrobotics.blogspot.com/2014/04/first-step-towards-multi-rotor-platform.html) to know more.
+
+This repository contains all source codes &amp; software used to build a complete DIY flight controller using arduino for a T-copter.
+
+Disclaimer: The code is under development & may contain some minor/major bugs. I will not be liable for any damage/enjuries occured by use of this software while making your drone.
